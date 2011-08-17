@@ -1,0 +1,14 @@
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c matrix.cpp       -o matrix.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c lightSensor.cpp       -o lightSensor.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c propSensor.cpp       -o propSensor.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c object.cpp       -o object.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c joint.cpp       -o joint.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c neuralNetwork.cpp       -o neuralNetwork.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c robot.cpp       -o robot.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c environment.cpp       -o environment.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c optimizer.cpp       -o optimizer.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c envs.cpp       -o envs.o
+g++ -DdTRIMESH_ENABLED -DdDOUBLE -DdNODEBUG -I "$HOME/ode-0.11.1/include" -c M3.cpp       -o M3.o
+
+g++ -g -O2 -o M3 matrix.o lightSensor.o propSensor.o object.o joint.o neuralNetwork.o robot.o environment.o optimizer.o envs.o M3.o -lSM -lICE $HOME/ode-0.11.1/drawstuff/src/.libs/libdrawstuff.a $HOME/ode-0.11.1/ode/src/.libs/libode.a -lGLU -lGL -lm -lpthread
+

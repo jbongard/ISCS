@@ -1,0 +1,81 @@
+/* A robot is composed of
+
+	one or more objects,
+	one or more joints,
+	one or more sensors,
+	one or more motors, and
+	a neural network controller. */
+
+#ifndef _ROBOT_H
+#define _ROBOT_H
+
+#include "object.h"
+#include "joint.h"
+
+#include "environment.h"
+#include "neuralNetwork.h"
+
+class ROBOT {
+
+public:
+	class ENVIRONMENT *containerEnvironment;
+	int 		  numObjects;
+	OBJECT 		  **objects;
+	int		  numJoints;
+	JOINT		  **joints;
+	int 		  hidden;
+	int 		  physicalized;
+	NEURAL_NETWORK	  *neuralNetwork;
+	double		  sensorDifferences;
+
+public:
+	ROBOT(ENVIRONMENT *cE, int robotType);
+	ROBOT(ROBOT *other);
+	ROBOT(ENVIRONMENT *cE, ROBOT *other);
+	ROBOT(ENVIRONMENT *cE, ifstream *inFile);
+	~ROBOT();
+	void Activate(void);
+	void Deactivate(void);
+	void Draw(void);
+	double Fitness_Get(ROBOT *targetRobot);
+	int  Has_Stopped(void);
+	void Hide(void);
+	int  In_Simulator(void);
+	void Label(class NEURAL_NETWORK *genome, int environmentIndex);
+	void Make_Incorporeal(void);
+	void Make_Physical(dWorldID world, dSpaceID space);
+	int  Motors_Number_Of(void);
+	void Move(int timeStep);
+	void Move(double x, double y, double z);
+	void Save(ofstream *outFile);
+	void Sensors_Add_Difference(ROBOT *other);
+	int  Sensors_Number_Of(void);
+	void Sensors_Update(void);
+	void Sensors_Write(void);
+	void Set_Color(double r, double g, double b);
+	void Unhide(void);
+
+private:
+	void Actuate_Motors(void);
+	void Create_Starfish(void);
+	void Create_Starfish_Joints(void);
+	void Create_Starfish_Objects(void);
+	bool File_Exists(char *fileName);
+	int  File_Index_Next_Available(void);
+	void Initialize(ROBOT *other);
+	void Initialize(ifstream *inFile);
+	void Neural_Network_Update(int timeStep);
+	void   Sensors_Touch_Print(void);
+	double Sensors_Get_Largest_Difference(ROBOT *other);
+	double Sensors_Get_Total_Differences(ROBOT *other);
+	double Sensors_Get_Total(void);
+	double Sensors_In_Joints_Largest_Difference(ROBOT *other);
+	double Sensors_In_Joints_Total_Differences(ROBOT *other);
+	void   Sensors_In_Joints_Write(void);
+	double Sensors_In_Objects_Largest_Difference(ROBOT *other);
+	double Sensors_In_Objects_Total_Differences(ROBOT *other);
+	void   Sensors_In_Objects_Write(void);
+	void   Sensors_Touch_Clear(void);
+};
+
+#endif

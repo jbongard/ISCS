@@ -1,0 +1,742 @@
+#include "stdio.h"
+#include "iostream"
+#include "fstream"
+
+#ifndef _ENVIRONMENT_CPP
+#define _ENVIRONMENT_CPP
+
+#include "environment.h"
+#include "constants.h"
+#include "matrix.h"
+
+ENVIRONMENT::ENVIRONMENT(void) {
+
+	Initialize();
+
+	numOtherObjects = 0;
+
+	activeElement = -1;
+
+	activated = false;
+
+	savedFileIndex = -1;
+}
+
+ENVIRONMENT::ENVIRONMENT(ENVIRONMENT *other) {
+	
+	Initialize();
+
+	if ( other->lightSource )
+		
+		lightSource = new OBJECT(this,other->lightSource);
+
+	numOtherObjects = other->numOtherObjects;
+	for (int i=0;	i<numOtherObjects;	i++)
+		if ( other->otherObjects[i] )
+			otherObjects[i] = new OBJECT(this,
+						other->otherObjects[i]);
+
+	numRobots = other->numRobots;
+	for (int i=0;	i<numRobots;	i++)
+		if ( other->robots[i] )
+			robots[i] = new ROBOT(this,other->robots[i]);
+
+	activeElement = -1;
+	activated = false;
+
+	savedFileIndex = -1;
+}
+
+ENVIRONMENT::ENVIRONMENT(ifstream *inFile) {
+
+	Initialize();
+
+	Load(inFile);
+
+	savedFileIndex = -1;
+}
+
+ENVIRONMENT::~ENVIRONMENT(void) {
+
+	Destroy();
+}
+
+void ENVIRONMENT::Activate_All(void) {
+
+	if ( lightSource )
+
+		lightSource->Activate();
+
+	for (int i=0;	i<numOtherObjects;	i++)
+
+		if ( otherObjects[i] )
+			otherObjects[i]->Activate();
+
+	for (int i=0;	i<numRobots;	i++)
+
+		if ( robots[i] )
+			robots[i]->Activate();
+
+	activeElement = -1;
+}
+
+void ENVIRONMENT::Activate_Light_Source(void) {
+
+	// Light source already active
+	if ( activeElement==0 )
+		return;
+
+	Deactivate_All();
+	// Deactivate anything that's currently active
+
+	activeElement = 0;
+
+	Activate_Current_Element();
+}
+
+void ENVIRONMENT::Activate_Robot(int robotIndex) {
+
+	if ( numRobots<(robotIndex+1) )
+		return;
+
+	Deactivate_All();
+	// Deactivate anything that's currently active
+
+	activeElement = 1 + numOtherObjects + robotIndex;
+
+	Activate_Current_Element();
+}
+
+void ENVIRONMENT::Active_Element_Copy(void) {
+
+	if ( activeElement >= (1+numOtherObjects) )
+
+		Robot_Copy();
+
+	else
+		Object_Copy();
+}
+
+void ENVIRONMENT::Active_Element_Delete(void) {
+
+	// Only the last robot in the sequence can be deleted.
+
+	if ( activeElement >= (1+numOtherObjects) )
+
+		Robot_Delete();
+
+	else
+		Object_Delete();
+}
+
+void ENVIRONMENT::Active_Element_Move(double x, double y, double z) {
+
+	if ( activeElement==0 ) {
+
+		if ( lightSource )
+			lightSource->Move(x,y,z);
+	}
+
+	else if ( activeElement <= numOtherObjects ) {
+
+		int objectIndex = activeElement-1;
+
+		if ( otherObjects[objectIndex] )
+
+			otherObjects[objectIndex]->Move(x,y,z);
+	}
+	else {
+
+		int robotIndex = activeElement-numOtherObjects-1;
+
+		if ( robots[robotIndex] )
+
+			robots[robotIndex]->Move(x,y,z);
+	}
+}
+
+void ENVIRONMENT::Active_Element_Next(void) {
+
+	Deactivate_Current_Element();
+
+	activeElement++;
+
+	if ( activeElement > (numOtherObjects+numRobots) )
+		activeElement = 0;
+
+	Activate_Current_Element();
+}
+
+void ENVIRONMENT::Active_Element_Previous(void) {
+
+	Deactivate_Current_Element();
+
+	activeElement--;
+
+	if ( activeElement < 0 )
+		activeElement = numOtherObjects+numRobots;
+
+	Activate_Current_Element();
+}
+
+void ENVIRONMENT::Active_Element_Resize(double changeX, double changeY, double changeZ) {
+
+	if ( Active_Element_Is_Object() )
+
+		otherObjects[activeElement-1]->Resize(changeX,changeY,changeZ);
+}
+
+void ENVIRONMENT::Add_Light_Source(void) {
+
+	lightSource = new OBJECT(	SHAPE_RECTANGLE,
+					LIGHT_SOURCE_LENGTH,
+					LIGHT_SOURCE_LENGTH,
+					LIGHT_SOURCE_LENGTH,
+					0,
+					LIGHT_SOURCE_DISTANCE,
+					(LIGHT_SOURCE_LENGTH)/2.0,
+					0,0,1
+					);
+	lightSource->containerEnvironment = this;
+
+	activeElement = 0;
+	lightSource->Activate();
+}
+
+void ENVIRONMENT::Add_Robot_Starfish(void) {
+
+	if ( numRobots < MAX_ROBOTS ) {
+
+		robots[numRobots] = new ROBOT(this,ROBOT_STARFISH);
+		robots[numRobots]->Deactivate();
+
+		numRobots++;
+	}
+}
+
+void ENVIRONMENT::Allow_Robot_To_Move(void) {
+
+	if ( robots[0] ) {
+
+		robots[0]->Sensors_Update();
+		robots[0]->Move();
+	}
+}
+
+void ENVIRONMENT::Deactivate_All(void) {
+
+	if ( lightSource )
+
+		lightSource->Deactivate();
+
+	for (int i=0;	i<numOtherObjects;	i++)
+
+		if ( otherObjects[i] )
+			otherObjects[i]->Deactivate();
+
+	for (int i=0;	i<numRobots;	i++)
+
+		if ( robots[i] )
+			robots[i]->Deactivate();
+
+	activeElement = -1;
+
+}
+
+void ENVIRONMENT::Destroy_Simulated_Objects(void) {
+
+	if ( lightSource )
+
+		lightSource->Make_Incorporeal();
+
+	for (int i=0;	i<numOtherObjects;	i++)
+
+		if ( otherObjects[i] )
+			otherObjects[i]->Make_Incorporeal();
+
+	for (int i=0;	i<numRobots;	i++)
+
+		if ( robots[i] )
+			robots[i]->Make_Incorporeal();
+}
+
+void ENVIRONMENT::Draw(void) {
+
+	if ( lightSource )
+
+		lightSource->Draw();
+
+	for (int i=0;	i<numOtherObjects;	i++)
+
+		if ( otherObjects[i] )
+			otherObjects[i]->Draw();
+
+	for (int i=0;	i<numRobots;	i++)
+
+		if ( robots[i] )
+			robots[i]->Draw();
+}
+
+double ENVIRONMENT::Fitness_Get(void) {
+
+	robots[0]->Sensors_Update();
+	robots[1]->Sensors_Update();
+
+	return( robots[0]->Fitness_Get(robots[1]) );
+}
+
+void ENVIRONMENT::Hide_Light_Source(void) {
+
+	if ( lightSource )
+		lightSource->Hide();
+}
+
+void ENVIRONMENT::Hide_Other_Objects(void) {
+
+	for (int i=0;i<numOtherObjects;i++)
+
+		if ( otherObjects[i] )
+
+			otherObjects[i]->Hide();
+}
+
+void ENVIRONMENT::Hide_Robot(int robotIndex) {
+
+	if ( robots[robotIndex] )
+
+		robots[robotIndex]->Hide();
+}
+
+void ENVIRONMENT::Label(NEURAL_NETWORK *genome) {
+
+	if ( robots[0] )
+
+		robots[0]->Label(genome);
+}
+
+void ENVIRONMENT::Load(void) {
+
+	SavedFile_FindNext();
+
+	char fileName[100];
+	sprintf(fileName,"SavedFiles/env%d.dat",savedFileIndex);
+
+	ifstream *inFile = new ifstream(fileName);
+
+	Destroy();
+
+	Initialize();
+
+	Load(inFile);
+
+	inFile->close();
+	delete inFile;
+	inFile = NULL;
+
+	printf("environment %d loaded.\n",savedFileIndex);
+}
+
+void ENVIRONMENT::Move(double x, double y, double z) {
+
+	if ( lightSource )
+
+		lightSource->Move(x,y,z);
+
+	for (int i=0;	i<numOtherObjects;	i++)
+
+		if ( otherObjects[i] )
+			otherObjects[i]->Move(x,y,z);
+
+	for (int i=0;	i<numRobots;	i++)
+
+		if ( robots[i] )
+			robots[i]->Move(x,y,z);
+}
+
+void ENVIRONMENT::Prepare_For_Simulation(dWorldID world, 
+					dSpaceID space) {
+
+	if ( lightSource )
+		lightSource->Make_Solid(world,space);
+
+	for (int i=0;i<numOtherObjects;i++)
+		otherObjects[i]->Make_Solid(world,space);
+
+	if ( robots[0] )
+		robots[0]->Make_Physical(world,space);
+
+	robots[0]->Activate();
+}
+
+void ENVIRONMENT::Robot_Copy(void) {
+
+	if ( activeElement >= (1+numOtherObjects) ) {
+
+		if ( numRobots < MAX_ROBOTS ) {
+	
+			ROBOT *currentRobot = 
+			robots[activeElement-numOtherObjects-1];
+
+			robots[numRobots] = 
+			new ROBOT( currentRobot );
+
+			currentRobot->Deactivate();
+			
+			robots[numRobots]->Activate();
+			
+			robots[numRobots]->Move(-0.1,0.1,0);
+
+			activeElement = 1+numOtherObjects+numRobots;
+
+			numRobots++;
+
+			currentRobot = NULL;
+		}
+
+		Robots_Recolorize();
+	}
+}
+
+void ENVIRONMENT::Object_Copy(void) {
+
+	if ( numOtherObjects >= MAX_OTHER_OBJECTS )
+
+		return;
+
+	if ( activeElement == 0 ) {
+
+		otherObjects[numOtherObjects] = new OBJECT(this,lightSource);
+
+		lightSource->Deactivate();
+	}
+	else {
+
+		otherObjects[numOtherObjects] = new OBJECT(this,otherObjects[activeElement-1]);
+
+		otherObjects[activeElement-1]->Deactivate();
+
+	}
+
+	otherObjects[numOtherObjects]->Set_Color(0.5,0.5,0.5);
+
+	otherObjects[numOtherObjects]->Activate();
+
+	otherObjects[numOtherObjects]->Move(-0.1,0.1,0);
+
+	activeElement = 1 + numOtherObjects;
+
+	numOtherObjects++;		
+}
+
+void ENVIRONMENT::Object_Delete(void) {
+
+	// If there are no other objects to delete...
+	if ( numOtherObjects == 0 )
+		return;
+
+	// Only allow deletion of the last object in the set.
+	if ( activeElement==numOtherObjects ) {
+
+		delete otherObjects[numOtherObjects-1];
+		otherObjects[numOtherObjects-1] = NULL;
+		numOtherObjects--;
+		activeElement--;
+
+		if ( activeElement==0 )
+			lightSource->Activate();
+		else
+			otherObjects[numOtherObjects-1]->Activate();
+	}
+}
+
+void ENVIRONMENT::Robot_Delete(void) {
+
+	// If there's only one robot in the environment, don't delete it.
+	if ( numRobots == 1 )
+		return;
+
+	// Only allow deletion of the last robot in the set.
+	if ( activeElement == (numOtherObjects+numRobots) ) {
+
+		delete robots[numRobots-1];
+		robots[numRobots-1] = NULL;
+		numRobots--;
+		activeElement--;
+	
+		robots[numRobots-1]->Activate();
+
+		Robots_Recolorize();
+	}
+}
+
+int  ENVIRONMENT::Robot_Has_Stopped(int timer) {
+
+	if ( timer < 10 )
+		return( false );
+
+	if ( robots[0] )
+
+		return( robots[0]->Has_Stopped() );
+
+	return( false );
+}
+
+void ENVIRONMENT::Robots_Set_Color(double r, double g, double b) {
+
+	for (int i=0;	i<numRobots;	i++)
+
+		if ( robots[i] )
+
+			robots[i]->Set_Color(r,g,b);
+}
+
+void ENVIRONMENT::Save(void) {
+
+	int fileIndex = File_Index_Next_Available();
+
+	char fileName[100];
+	sprintf(fileName,"SavedFiles/env%d.dat",fileIndex);
+
+	ofstream *outFile = new ofstream(fileName);
+
+	Save(outFile);
+
+	outFile->close();
+	delete outFile;
+	outFile = NULL;
+
+	printf("Environment %d saved.\n",fileIndex);
+}
+
+void ENVIRONMENT::Save(ofstream *outFile) {
+
+	if ( lightSource )
+		lightSource->Save(outFile);
+
+	(*outFile) << numOtherObjects << "\n";
+	for (int i=0;i<numOtherObjects;i++)
+		if ( otherObjects[i] )
+			otherObjects[i]->Save(outFile);
+
+	(*outFile) << numRobots << "\n";
+	for (int i=0;i<numRobots;i++)
+		if ( robots[i] )
+			robots[i]->Save(outFile);
+
+	(*outFile) << activeElement << "\n";
+}
+
+void ENVIRONMENT::Set_Color(double r, double g, double b) {
+
+	if ( lightSource )
+
+		lightSource->Set_Color(r,g,b);
+
+
+	for (int i=0;	i<numOtherObjects;	i++)
+
+		if ( otherObjects[i] )
+
+			otherObjects[i]->Set_Color(r,g,b);
+
+	Robots_Set_Color(r,g,b);
+}
+
+void ENVIRONMENT::Unhide_All(void) {
+
+	if ( lightSource )
+
+		lightSource->Unhide();
+
+
+	for (int i=0;	i<numOtherObjects;	i++)
+
+		if ( otherObjects[i] )
+
+			otherObjects[i]->Unhide();
+
+	for (int i=0;	i<numRobots;	i++)
+
+		if ( robots[i] )
+
+			robots[i]->Unhide();
+}
+
+// ------------------ Private methods --------------------
+
+void ENVIRONMENT::Activate_Current_Element(void) {
+
+	if ( activeElement==0 ) {
+
+		if ( lightSource )
+			lightSource->Activate();
+	}
+
+	else if ( activeElement <= numOtherObjects ) {
+
+		if ( otherObjects[activeElement-1] )
+
+			otherObjects[activeElement-1]->Activate();
+	}
+	else {
+		if ( robots[activeElement-numOtherObjects-1] )
+
+			robots[activeElement-numOtherObjects-1]->Activate();
+	}
+}
+
+int  ENVIRONMENT::Active_Element_Is_Object(void) {
+
+	int isNotLightSource 	= activeElement > 0;
+	int isNotRobot 		= activeElement < (1+numOtherObjects);
+
+	return( isNotLightSource && isNotRobot );
+}
+
+void ENVIRONMENT::Deactivate_Current_Element(void) {
+
+	if ( activeElement==0 ) {
+
+		if ( lightSource )
+			lightSource->Deactivate();
+	}
+
+	else if ( activeElement <= numOtherObjects ) {
+
+		if ( otherObjects[activeElement-1] )
+
+			otherObjects[activeElement-1]->Deactivate();
+	}
+	else {
+		if ( robots[activeElement-numOtherObjects-1] )
+
+			robots[activeElement-numOtherObjects-1]->Deactivate();
+	}
+}
+
+void ENVIRONMENT::Destroy(void) {
+
+	if ( lightSource ) {
+		delete lightSource;
+		lightSource = NULL;
+	}
+
+	for (int i=0;	i<MAX_OTHER_OBJECTS;	i++) {
+
+		if ( otherObjects[i] ) {
+			delete otherObjects[i];
+			otherObjects[i] = NULL;
+		}
+	}
+	delete[] otherObjects;
+	otherObjects = NULL;	
+
+	for (int i=0;	i<MAX_ROBOTS;	i++) {
+
+		if ( robots[i] ) {
+			delete robots[i];
+			robots[i] = NULL;
+		}
+	}
+	delete[] robots;
+	robots = NULL;
+}
+
+bool  ENVIRONMENT::File_Exists(char *fileName) {
+
+	ifstream ifile(fileName);
+	return ifile;
+}
+
+int  ENVIRONMENT::File_Index_Next_Available(void) {
+
+	int fileIndex = 0;
+	char fileName[100];
+	sprintf(fileName,"SavedFiles/env%d.dat",fileIndex);
+	while ( File_Exists(fileName) ) {
+		fileIndex++;
+		sprintf(fileName,"SavedFiles/env%d.dat",fileIndex);
+	}
+
+	return( fileIndex );
+}
+
+void ENVIRONMENT::Initialize(void) {
+
+	lightSource = NULL;
+
+	otherObjects = new OBJECT * [MAX_OTHER_OBJECTS];
+	for (int i=0;	i<MAX_OTHER_OBJECTS;	i++)
+		otherObjects[i] = NULL;
+
+	numRobots = 0;
+	robots = new ROBOT * [MAX_ROBOTS];
+	for (int i=0;	i<MAX_ROBOTS;	i++)
+		robots[i] = NULL;
+}
+
+void ENVIRONMENT::Load(ifstream *inFile) {
+
+	lightSource = new OBJECT(this,inFile);
+
+	(*inFile) >> numOtherObjects;
+	for (int i=0;			i<numOtherObjects;	i++)
+		otherObjects[i] = new OBJECT(this,inFile);
+	
+	(*inFile) >> numRobots;
+	for (int i=0;			i<numRobots;		i++)
+		robots[i] = new ROBOT(this,inFile);	
+
+	(*inFile) >> activeElement;
+	activated = false;
+}
+
+void ENVIRONMENT::Robot_Delete(int robotIndex) {
+
+	if ( robots[robotIndex] ) {
+		delete robots[robotIndex];
+		robots[robotIndex] = NULL;
+	}
+}
+
+int ENVIRONMENT::Robot_Stopped(int timer) {
+
+	if ( timer >= 10 )
+		return( robots[0]->Has_Stopped() );
+	else
+		return( false );
+
+	return( false );
+}
+
+void ENVIRONMENT::Robots_Recolorize(void) {
+
+	// Lighter-red robots are further ahead in the sequence
+
+	if ( numRobots > 1 ) {
+
+		double colorIncrement = 0.7/(double(numRobots)-1.0);
+
+		for (int i=0; i<numRobots; i++)
+
+			robots[i]->Set_Color(
+				1.0,
+				i*colorIncrement,
+				i*colorIncrement);
+
+	}
+}
+
+void ENVIRONMENT::SavedFile_FindNext(void) {
+
+	savedFileIndex++;
+
+	char fileName[100];
+	sprintf(fileName,"SavedFiles/env%d.dat",savedFileIndex);
+
+	if ( !File_Exists(fileName) )
+
+		savedFileIndex = 0;
+}
+
+#endif
